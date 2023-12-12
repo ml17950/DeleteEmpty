@@ -1,101 +1,154 @@
 #Include Once "windows.bi"
 
+Namespace colors
+	Const black As Integer = 0
+	Const dark_blue As Integer = 1
+	Const dark_green As Integer = 2
+	Const dark_cyan As Integer = 3
+	Const dark_red As Integer = 4
+	Const dark_magenta As Integer = 5
+	Const dark_yellow As Integer = 6
+	Const grey As Integer = 7
+	Const dark_grey As Integer = 8
+	Const blue As Integer = 9
+	Const green As Integer = 10
+	Const cyan As Integer = 11
+	Const red As Integer = 12
+	Const magenta As Integer = 13
+	Const yellow As Integer = 14
+	Const white As Integer = 15
+End Namespace
+
 Sub displayHelp()
 	Print
-	Print "DeleteEmpty Version " & APP_VERSION & " by M. Lindner"
+	Print "DeleteEmpty - deletes empty directories/files - by M. Lindner / Version " & APP_VERSION
 	Print
 	Print "usage: DeleteEmpty <options> <path>"
 	Print
 	Print "Options"
 	Print "======================================================================="
-	Print " -r    recursive"
-	Print " -d    delete empty folders"
-	Print " -0    delete 0 byte files"
+	Print " -r            recursive"
+	Print " -d            delete empty folders (default)"
+	Print " -0            delete 0 byte files"
+	Print " -v            verbose output"
 	Print
-	Print " -h, -help    this help"
+	Print " -h, -help     this help"
 End Sub
 
+Function deleteThisFile(ByVal file As String, ByVal filename As String) As Integer
+	Dim ret As Integer
+	
+	Print "  " & file & " - ";
 
+	ret = Kill(file)
+	
+	If ret = 0 Then
+		Color colors.dark_green, currentBackColor
+		Print "deleted"
+		Color currentTextColor, currentBackColor
+	Else
+		Color colors.dark_red, currentBackColor
+		Print "failed to delete"
+		Color currentTextColor, currentBackColor
+	EndIf
+	
+	Return ret
+End Function
 
+Function deleteThisFolder(ByVal path As String, ByVal fileCnt As LongInt) As LongInt
+	Dim folderPathNullTerminated As ZString * 255
+	Dim ret As LongInt
 
+	Print "  " & path & " - ";
 
+	' Convert the folder path to a null-terminated string
+	folderPathNullTerminated = path + Chr(0)
 
+	' Attempt to remove the directory
+	ret = RemoveDirectory(@folderPathNullTerminated)
 
-Function ScanFolder(ByVal path As String, ByVal recursive As Byte, ByVal level As Integer) As LongInt
+	If ret <> 0 Then
+		Color colors.dark_green, currentBackColor
+		Print "deleted"
+		Color currentTextColor, currentBackColor
+	Else
+		Color colors.dark_red, currentBackColor
+		Print "failed to delete"
+		Color currentTextColor, currentBackColor
+	EndIf
+
+	Return ret
+End Function
+
+Function scanFolder(ByVal path As String, ByVal recursive As Byte, ByVal level As Integer) As Integer
 	Dim wfd As WIN32_FIND_DATA
 	Dim hwfd As HANDLE
 	Dim szTmp As String
 	Dim fileSize As LongInt
-	Dim fileCnt As LongInt = 0
-	Dim fCnt As LongInt = 0
-	
+	Dim fileCnt As Integer = 0
+	Dim folderCnt As Integer = 0
+	Dim totalCnt As Integer
+
 	If Right(path, 1) = "\" Then path = Left(path, Len(path) - 1)
 
 	hwfd = FindFirstFile(path & "\*", @wfd)
-	
+
 	If hwfd <> INVALID_HANDLE_VALUE Then
 		While TRUE
 			If (wfd.dwFileAttributes And FILE_ATTRIBUTE_DIRECTORY) = 0 Then
 				' it's a file
 				szTmp = path & "\" & wfd.cFileName
 				fileCnt = fileCnt + 1
-				
-				'Print "[F] " & wfd.cFileName & " > " & wfd.nFileSizeLow
-				
+
 				If param_0byte_files = 1 And wfd.nFileSizeLow = 0 Then
-					If Kill(szTmp) = 0 Then
-						Print " delete 0 byte file : " & szTmp & "... OK"
+					If deleteThisFile(szTmp, wfd.cFileName) = 0 Then
 						fileCnt = fileCnt - 1
-					Else
-						Print " delete 0 byte file : " & szTmp & "... FAILED"
 					EndIf
 				EndIf
 			Else
-				' it's a folder
 				If wfd.cFileName <> "." And wfd.cFileName <> ".." Then
+					' it's a folder
 					szTmp = path & "\" & wfd.cFileName
-					'fileCnt = fileCnt + 1
-
-					'Print "[D](" & level & ") " & wfd.cFileName & " > "
+					folderCnt = folderCnt + 1
 					
-					If level = 1 Then
-						fCnt = ScanFolder(szTmp, recursive, (level + 1))	' call myself to scan this path
-						'Print level & " : [[" & fCnt & "]]" & szTmp
-						
-						'If param_empty_folders = 1 And fCnt = 0 Then
-						'	Print "[*] delete empty folder: [[" & fCnt & "]] " & szTmp
-						'EndIf
-					Else
-						If recursive = 1 Then
-							fCnt = ScanFolder(szTmp, recursive, (level + 1))	' call myself to scan this path
-					'		'Print level & " ; [[" & fCnt & "]]" & szTmp
-					'		
-					'		If param_empty_folders = 1 And fCnt = 0 Then
-					'			Print " [*] delete empty folder: ((" & fCnt & ")) " & szTmp
-					'		EndIf
-						EndIf
+					If recursive = 1 Then
+						scanFolder(szTmp, recursive, (level + 1))	' call myself to scan this path
 					EndIf
 				EndIf
 			EndIf
-			
+
 			If FindNextFile(hwfd,@wfd) = FALSE Then
-				Exit While											' No more files in this path
+				Exit While											' no more files in this path
 			EndIf
 		Wend
 
-		FindClose(hwfd)											' Close the find handle
+		FindClose(hwfd)											' close the find handle
 	EndIf
 	
-	'Print "[S] " & String(level, "-") & " " & path & " = " & fileCnt
-	'Print "[X] " & level & " = " & param_empty_folders & " / " & fileCnt
-	
-	If param_empty_folders = 1 And fileCnt = 0 Then
-		If RmDir(path) = 0 Then
-			Print " delete empty folder: " & path & "... OK"
-		Else
-			Print " delete empty folder: " & path & "... FAILED - " & fileCnt & " files remaining"
+	totalCnt = folderCnt + fileCnt
+
+	If fileCnt > 0 Then
+		If param_verbose = 1 Then
+			Print "  " & path & " - ";
+			Color colors.dark_cyan, currentBackColor
+			Print "contains files"
+			Color currentTextColor, currentBackColor
 		EndIf
+	Else
+		If folderCnt > 0 Then
+			If param_verbose = 1 Then
+				Print "  " & path & " - ";
+				Color colors.dark_yellow, currentBackColor
+				Print "contains folders"
+				Color currentTextColor, currentBackColor
+			EndIf
+		Else
+			If deleteThisFolder(path, fileCnt) = 0 Then
+				folderCnt = folderCnt - 1
+			EndIf
+		EndIf
+		
 	EndIf
-	
-	Return fileCnt
+
+	Return totalCnt
 End Function

@@ -1,4 +1,4 @@
-Const APP_VERSION As String = "23.07.05"
+Const APP_VERSION As String = "23.12.12"
 
 '##################################################################################
 ' GLOBAL INCLUDES
@@ -8,8 +8,11 @@ Const APP_VERSION As String = "23.07.05"
 ' GLOBAL VARIABLES
 '##################################################################################
 
-Dim Shared param_empty_folders As Byte = 0
+Dim Shared param_empty_folders As Byte = 1
 Dim Shared param_0byte_files As Byte = 0
+Dim Shared param_verbose As Byte = 0
+Dim Shared currentTextColor As Integer
+Dim Shared currentBackColor As Integer
 
 '##################################################################################
 ' PROJECT INCLUDES
@@ -24,23 +27,29 @@ Dim Shared param_0byte_files As Byte = 0
 Dim param_recursive As Byte = 0
 Dim param_path As String = ""
 Dim fCnt As LongInt
+Dim currentColor As Integer
 
 '=======================================
 ' Parameter
 '=======================================
-
-'param_path = "D:\SynologyDrive"
 
 If __FB_ARGC__ < 2 Then
 	displayHelp()
 	End
 EndIf
 
+currentColor = Color
+currentTextColor = LoWord(currentColor)
+currentBackColor = HiWord(currentColor)
+
 For i As Integer = 1 To __FB_ARGC__ - 1
 	Select Case Command(i)
 		Case "-h", "-help", "--help", "-?", "/?"
 			displayHelp()
 			End
+
+		Case "-v"
+			param_verbose = 1
 
 		Case "-r"
 			param_recursive = 1
@@ -64,17 +73,16 @@ Next
 ' Code
 '=======================================
 
-Print
-Print "scanning " & param_path & " - please wait..."
-Print
-
-'Print "[I] " & String(0, "-") & " " & param_path
-
-fCnt = ScanFolder(param_path, param_recursive, 1) 
-
-'Print "{{" & fCnt & "}}
+If param_path = "" Then
+	displayHelp()
+	End
+EndIf
 
 Print
-Print "key..."
-Sleep 10000
+Print " scanning " & param_path & " - please wait..."
+
+fCnt = scanFolder(param_path, param_recursive, 1) 
+
+Print " ready"
+' Sleep
 End
