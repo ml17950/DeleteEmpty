@@ -55,11 +55,9 @@ Function deleteThisFile(ByVal file As String, ByVal filename As String) As Integ
 	Return ret
 End Function
 
-Function deleteThisFolder(ByVal path As String, ByVal fileCnt As LongInt) As LongInt
+Function deleteThisFolder(ByVal path As String, ByVal fileCnt As LongInt, ByVal show_error As Byte) As LongInt
 	Dim folderPathNullTerminated As ZString * 255
 	Dim ret As LongInt
-
-	Print "  " & path & " - ";
 
 	' Convert the folder path to a null-terminated string
 	folderPathNullTerminated = path + Chr(0)
@@ -68,26 +66,32 @@ Function deleteThisFolder(ByVal path As String, ByVal fileCnt As LongInt) As Lon
 	ret = RemoveDirectory(@folderPathNullTerminated)
 
 	If ret <> 0 Then
-		Color colors.dark_green, currentBackColor
+		Print "  " & path & " - ";
+		Color colors.green, currentBackColor
 		Print "deleted"
 		Color currentTextColor, currentBackColor
 	Else
-		Color colors.dark_red, currentBackColor
-		Print "failed to delete"
-		Color currentTextColor, currentBackColor
+		If show_error = 1 And param_verbose = 1 Then
+			Print "  " & path & " - ";
+			Color colors.red, currentBackColor
+			Print "failed to delete, maybe not empty"
+			Color currentTextColor, currentBackColor
+		EndIf
 	EndIf
 
 	Return ret
 End Function
 
-Function scanFolder(ByVal path As String, ByVal recursive As Byte, ByVal level As Integer) As Integer
+Function scanFolder(ByVal parent As String, ByVal path As String, ByVal recursive As Byte, ByVal level As Integer) As Integer
 	Dim wfd As WIN32_FIND_DATA
 	Dim hwfd As HANDLE
 	Dim szTmp As String
 	Dim fileSize As LongInt
 	Dim fileCnt As Integer = 0
 	Dim folderCnt As Integer = 0
-	Dim totalCnt As Integer
+	Dim totalCnt As Integer = 0
+	Dim retCnt As Integer = 0
+
 
 	If Right(path, 1) = "\" Then path = Left(path, Len(path) - 1)
 
@@ -112,7 +116,7 @@ Function scanFolder(ByVal path As String, ByVal recursive As Byte, ByVal level A
 					folderCnt = folderCnt + 1
 					
 					If recursive = 1 Then
-						scanFolder(szTmp, recursive, (level + 1))	' call myself to scan this path
+						scanFolder(path, szTmp, recursive, (level + 1))	' call myself to scan this path
 					EndIf
 				EndIf
 			EndIf
@@ -124,31 +128,23 @@ Function scanFolder(ByVal path As String, ByVal recursive As Byte, ByVal level A
 
 		FindClose(hwfd)											' close the find handle
 	EndIf
-	
-	totalCnt = folderCnt + fileCnt
 
-	If fileCnt > 0 Then
-		If param_verbose = 1 Then
-			Print "  " & path & " - ";
-			Color colors.dark_cyan, currentBackColor
-			Print "contains files"
-			Color currentTextColor, currentBackColor
-		EndIf
-	Else
-		If folderCnt > 0 Then
-			If param_verbose = 1 Then
-				Print "  " & path & " - ";
-				Color colors.dark_yellow, currentBackColor
-				Print "contains folders"
-				Color currentTextColor, currentBackColor
-			EndIf
-		Else
-			If deleteThisFolder(path, fileCnt) = 0 Then
-				folderCnt = folderCnt - 1
-			EndIf
-		EndIf
-		
+	'Print fileCnt & "/" & folderCnt & ": " & path
+
+	If fileCnt = 0 Then
+		emptyFolderList(emptyFolderIndex) = path
+		emptyFolderIndex = emptyFolderIndex + 1
 	EndIf
 
-	Return totalCnt
+	Return fileCnt
 End Function
+
+Sub deleteFoldersFromList()
+	Dim i As Integer
+	
+	For i = 0 To emptyFolderIndex - 1
+		If emptyFolderList(i) <> "" Then
+			deleteThisFolder(emptyFolderList(i), 0, 1)
+		EndIf
+	Next
+End Sub

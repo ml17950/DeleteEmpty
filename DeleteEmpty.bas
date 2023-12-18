@@ -13,6 +13,8 @@ Dim Shared param_0byte_files As Byte = 0
 Dim Shared param_verbose As Byte = 0
 Dim Shared currentTextColor As Integer
 Dim Shared currentBackColor As Integer
+Dim Shared emptyFolderList(99999) As String
+Dim Shared emptyFolderIndex As Integer
 
 '##################################################################################
 ' PROJECT INCLUDES
@@ -81,7 +83,9 @@ EndIf
 Print
 Print " scanning " & param_path & " - please wait..."
 
-fCnt = scanFolder(param_path, param_recursive, 1) 
+fCnt = scanFolder("", param_path, param_recursive, 1) 
+
+deleteFoldersFromList()
 
 Print " ready"
 ' Sleep
